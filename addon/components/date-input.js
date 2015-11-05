@@ -13,19 +13,27 @@ export default Ember.TextField.extend({
     }
     return !!value.match(/^\d\d \/ \d\d \/ \d\d(\d\d)?$/);
   },
-  setValue: function() {
-    var date = this.get("date"),
-        month, day, year;
+  date: Ember.computed("value", {
+    get: function() {
+      return this.getDate();
+    },
+    set: function(key, date) {
+      this.setValue(date);
+      return date;
+    }
+  }),
+  setValue(date) {
+    var split;
 
     if (Ember.isNone(date)) {
       return;
     }
-    month = date.getMonth() + 1;
-    day = date.getDate();
-    year = date.getFullYear();
-    if (day.toString().length === 1) { day = "0" + day; }
-    this.set("value", `${month} / ${day} / ${year}`);
-  }.on("didInsertElement"),
+    if (this.equalDate(date)) {
+      return;
+    }
+    split = date.split("-");
+    this.set("value", `${split[1]} / ${split[2]} / ${split[0]}`);
+  },
   keyDown(e) {
     let $element = this.$(),
         code = e.keyCode,
@@ -86,33 +94,27 @@ export default Ember.TextField.extend({
     var character, ct;
     code = (96 <= code && code <= 105 ? code - 48 : code);
     character = String.fromCharCode(code);
-    switch (position) {
-      case 0:
-        return character.match(/[0-9]/) != null;
-      case 1:
-        if (text[0] === "0") {
-          return character.match(/[1-9]/) != null;
-        } else {
-          return character.match(/[0-2]/) != null;
-        }
-      case 5:
-        return character.match(/[0-9]/) != null;
-      case 6:
-        if (text[5] === "0") {
-          return character.match(/[1-9]/) != null;
-        }
+    if (position === 0) {
+      return character.match(/[0-9]/) != null;
+    }
+    if (position === 1) {
+      ct = text[0];
+      if (ct === "0") {
+        return character.match(/[1-9]/) != null;
+      } else {
+        return (ct === "1" || ct === "2") && character.match(/[0-2]/) != null;
+      }
+    }
 
-        // Assert that the second character in DD does not exceed days in current month
-        ct = parseInt(text[5], 10) * 10;
-        return ct + parseInt(character, 10) <= this.daysInMonth(parseInt(text.substring(0, 2), 10));
-      case 10:
-        return true;
-      case 11:
-        return true;
-      case 12:
-        return true;
-      case 13:
-        return true;
+    if (position === 5) {
+      return character.match(/[0-9]/) != null;
+    }
+    if (position === 6) {
+      ct = parseInt(text[5], 10) * 10;
+      return ct + parseInt(character, 10) <= this.daysInMonth(parseInt(text.substring(0, 2), 10));
+    }
+    if (position >= 10 && position <= 13) {
+      return true;
     }
     return false;
   },
@@ -125,23 +127,22 @@ export default Ember.TextField.extend({
     }
     return 31;
   },
-  setDate: function() {
+  getDate() {
     var value = this.get("value"),
-        date, split, month, day, year;
+        split, year;
 
     if (!this.isValid()) {
-      return this.set("date", null);
+      return null;
     }
-    if (Ember.isNone(this.get("date"))) {
-      split = value.split(" / ");
-      month = parseInt(split[0]) - 1;
-      day = parseInt(split[1]);
-      year = parseInt(split[2]);
+    split = value.split(" / ");
+    year = split[2];
 
-      if (split[2].length == 2) {
-        year += 2000;
-      }
-      this.set("date", new Date(year, month, day));
+    if (split[2].length === 2) {
+      year = `20${year}`;
     }
-  }.observes("value")
+    return `${year}-${split[0]}-${split[1]}`;
+  },
+  equalDate(date) {
+    return date === this.getDate();
+  }
 });
